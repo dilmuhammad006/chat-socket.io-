@@ -5,10 +5,11 @@ elForm.addEventListener("submit", async (e) => {
   e.preventDefault();
 
   const name = e.target.name.value;
+  const room = e.target.room.value
   localStorage.setItem("name", name);
 
   try {
-    const res = await fetch("http://10.10.1.110:3000/api/login", {
+    const res = await fetch("http://192.168.29.74:3000/api/login", {
       method: "POST",
       headers: {
         "Content-Type": "application/json"
@@ -16,13 +17,16 @@ elForm.addEventListener("submit", async (e) => {
       body: JSON.stringify({ name }),
     });
     
+
     if (!res.ok) {
       const text = await res.text(); 
-      throw new Error("Xatolik: " + res.status + " | Javob: " + text);
+      throw new Error(text);
     }
     
     const data = await res.json();
     localStorage.setItem("user", JSON.stringify(data.data))
+    localStorage.setItem("room", room)
+    
     
     window.location.href = "/";
   } catch (error) {
