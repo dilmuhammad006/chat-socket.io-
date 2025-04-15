@@ -2,31 +2,32 @@ import messageModel from "../message/message.model.js";
 import userModel from "../user/user.model.js";
 
 export const socketHandler = (io) => {
-  const getAllMessages = async () => {
+  const getAllMessages = async (roomId) => {
     return await messageModel
-      .find()
+      .find({ room: roomId })
       .sort({ createdAt: 1 })
       .populate("user");
   };
 
   io.on("connection", async (socket) => {
     const messages = await getAllMessages();
-    socket.emit("message", messages);
+    io.emit("message", messages);
 
-    socket.on("typing", async (data) => {
-      const user = await userModel.findById(data.user);
-      socket.broadcast.emit("typing", user);
+    socket.on("typing", async ({ user, roomId }) => {
+      const foundUser = await userModel.findById(user._id || user);
+      socket.to(roomId).emit("typing", foundUser);
     });
 
-    socket.on("message", async (data) => {
+    socket.on("message", async ({ user, roomId, text }) => {
       await messageModel.create({
-        text: data.text,
-        user: data.user,
+        text,
+        user,
         type: "message",
+        room: roomId,
       });
 
-      const messages = await getAllMessages();
-      io.emit("message", messages);
+      const messages = await getAllMessages(roomId);
+      io.to(roomId).emit("message", messages);
     });
 
     socket.on("join", async (data) => {
@@ -36,7 +37,26 @@ export const socketHandler = (io) => {
       });
 
       const messages = await getAllMessages();
-      io.emit("message", messages);
+    });
+    socket.on("joinRoom", async ({ roomId, user }) => {
+      socket.join(roomId);
+
+      const existsMessage = await messageModel.findOne({
+        type: "join_message",
+        room: roomId,
+        user: user._id,
+      });
+
+      if (!existsMessage) {
+        await messageModel.create({
+          type: "join_message",
+          user: user._id,
+          room: roomId,
+        });
+      }
+
+      const messages = await getAllMessages(roomId);
+      io.to(roomId).emit("message", messages);
     });
   });
 };
